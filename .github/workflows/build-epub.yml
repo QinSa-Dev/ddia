@@ -1,6 +1,14 @@
 name: Build EPUB
 on:
-  workflow_dispatch: # 手动触发按钮，在 Actions 页面可见
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to build'
+        default: 'v2'
+        type: choice
+        options:
+          - v2
+          - main
 
 jobs:
   build:
@@ -9,17 +17,20 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: v2
+          ref: ${{ github.event.inputs.branch }}
+          fetch-depth: 0 # 关键修复：关闭浅克隆
 
-      - name: Install dependencies
+      - name: Install system dependencies
         run: |
           sudo apt update
           sudo apt install -y pandoc make
-          # 安装 go
+
+      - name: Install Go
+        run: |
           curl -OL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz
           sudo rm -rf /usr/local/go
           sudo tar -C /usr/local -xzf go1.27.2.linux-amd64.tar.gz
-          echo "export PATH=$PATH:/usr/local/go/bin" >> $GITHUB_ENV
+          echo "PATH=$PATH:/usr/local/go/bin" >> $GITHUB_ENV
 
       - name: Go mod download
         run: go mod download

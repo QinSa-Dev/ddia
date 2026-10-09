@@ -1,24 +1,17 @@
 name: Build EPUB
 on:
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to build'
-        default: 'v2'
-        type: choice
-        options:
-          - v2
-          - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      - name: Checkout upstream v2
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.branch }}
-          fetch-depth: 0 # 关键修复：关闭浅克隆
+          repository: Vonng/ddia
+          ref: v2
+          fetch-depth: 0
 
       - name: Install system dependencies
         run: |

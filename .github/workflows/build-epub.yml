@@ -1,38 +1,72 @@
 name: Build EPUB
+
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "content/**"
+      - "static/**"
+      - "js/epub.css"
+      - "metadata.yaml"
+      - "bin/epub"
+      - "bin/preprocess-epub.py"
+      - "bin/check-epub.py"
+      - "Makefile"
+      - ".github/workflows/build-epub.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "content/**"
+      - "static/**"
+      - "js/epub.css"
+      - "metadata.yaml"
+      - "bin/epub"
+      - "bin/preprocess-epub.py"
+      - "bin/check-epub.py"
+      - "Makefile"
+      - ".github/workflows/build-epub.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-epub-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Build EPUB
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Checkout upstream v2
+      - name: Checkout
         uses: actions/checkout@v4
         with:
-          repository: Vonng/ddia
-          ref: v2
-          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Install system dependencies
+      # 用官方二进制包安装指定版本，避免 apt 里的 pandoc 过旧。
+      # 3.2 支持 --math-method，公式渲染与本地一致。
+      - name: Install pandoc
+        shell: bash
         run: |
-          sudo apt update
-          sudo apt install -y pandoc make
+          set -euo pipefail
+          PANDOC_VERSION=3.2
+          curl -fL --retry 3 -o /tmp/pandoc.tar.gz \
+            "https://github.com/jgm/pandoc/releases/download/${PANDOC_VERSION}/pandoc-${PANDOC_VERSION}-linux-amd64.tar.gz"
+          tar -xzf /tmp/pandoc.tar.gz -C /tmp
+          sudo install -m 0755 "/tmp/pandoc-${PANDOC_VERSION}/bin/pandoc" /usr/local/bin/pandoc
+          sudo ln -sf pandoc /usr/local/bin/pandoc-lua
+          sudo ln -sf pandoc /usr/local/bin/pandoc-server
+          pandoc --version | head -2
 
-      - name: Install Go
-        run: |
-          curl -OL https://go.dev/dl/go1.27.2.linux-amd64.tar.gz
-          sudo rm -rf /usr/local/go
-          sudo tar -C /usr/local -xzf go1.27.2.linux-amd64.tar.gz
-          echo "PATH=$PATH:/usr/local/go/bin" >> $GITHUB_ENV
-
-      - name: Go mod download
-        run: go mod download
-
-      - name: Build EPUB
-        run: make epub
+      # epub-check = 先构建再校验（chapters/figures/xhtml/errors 等）
+      - name: Build and verify EPUB
+        run: make epub-check
 
       - name: Upload EPUB artifact
         uses: actions/upload-artifact@v4
         with:
           name: ddia-epub
           path: output/ddia.epub
+          if-no-files-found: error
